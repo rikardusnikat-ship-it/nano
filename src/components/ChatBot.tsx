@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Message, getBotResponse, generateId, formatMarkdown } from '../utils/chatEngine';
 import { suggestedQuestions, categories } from '../data/knowledgeBase';
 
@@ -6,7 +6,22 @@ const ChatBot: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: generateId(),
-      text: "Halo! 👋 Saya **CakraNewton**, asisten virtual untuk pengembangan video pembelajaran fisika.\n\nSaya dirancang khusus untuk membantu mahasiswa Pendidikan Fisika dalam membuat video pembelajaran yang efektif dan menarik.\n\nSilakan tanyakan apa saja seputar:\n• 🎬 Software & tools editing video\n• 📋 Desain instruksional\n• 📐 Visualisasi konsep fisika\n• 🎥 Teknik produksi video\n• 📚 Strategi pedagogi\n\nAtau pilih salah satu pertanyaan di bawah untuk memulai! 👇",
+      text: `Halo! 👋 Saya **CakraNewton** ⚛️, asisten virtual untuk pengembangan video pembelajaran fisika.
+
+Saya dirancang khusus untuk membantu **mahasiswa Pendidikan Fisika** dalam membuat video pembelajaran yang efektif, pedagogis, dan menarik.
+
+**Saya bisa membantu Anda dengan:**
+
+🎬 **Software & Tools** — DaVinci Resolve, Manim, Blender, GeoGebra, OBS, PhET, dll
+📋 **Desain Instruksional** — Model ADDIE, ASSURE, prinsip Mayer, storyboard
+🎥 **Teknik Produksi** — Recording, editing, animasi, audio
+📐 **Konten Fisika** — Mekanika, listrik-magnet, gelombang, termodinamika, fisika modern
+📚 **Pedagogi** — Strategi pembelajaran, miskonsepsi, asesmen
+📤 **Platform** — YouTube, LMS, aksesibilitas, SEO
+💡 **Tips & Best Practices** — 25+ tips produksi video
+🔬 **Referensi & Riset** — Jurnal, skripsi, sumber belajar
+
+Silakan ketik pertanyaan Anda atau pilih salah satu pertanyaan di bawah untuk memulai! 👇`,
       sender: 'bot',
       timestamp: new Date(),
       category: 'pengantar'
@@ -15,16 +30,20 @@ const ChatBot: React.FC = () => {
   const [inputText, setInputText] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [showSidebar, setShowSidebar] = useState(false);
+  const [expandedMessages, setExpandedMessages] = useState<Set<string>>(new Set());
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
+  const scrollToBottom = useCallback(() => {
+    setTimeout(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, 100);
+  }, []);
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages]);
+  }, [messages, isTyping, scrollToBottom]);
 
   const handleSendMessage = (text?: string) => {
     const messageText = text || inputText.trim();
@@ -41,9 +60,11 @@ const ChatBot: React.FC = () => {
     setInputText('');
     setIsTyping(true);
 
-    // Simulate typing delay
+    // Simulate typing delay (longer messages = longer delay)
+    const response = getBotResponse(messageText);
+    const delay = Math.min(800 + response.text.length / 20, 2000);
+
     setTimeout(() => {
-      const response = getBotResponse(messageText);
       const botMessage: Message = {
         id: generateId(),
         text: response.text,
@@ -53,7 +74,12 @@ const ChatBot: React.FC = () => {
       };
       setMessages(prev => [...prev, botMessage]);
       setIsTyping(false);
-    }, 800 + Math.random() * 700);
+      
+      // Auto-expand long messages
+      if (response.text.length > 500) {
+        setExpandedMessages(prev => new Set([...prev, botMessage.id]));
+      }
+    }, delay);
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -66,11 +92,38 @@ const ChatBot: React.FC = () => {
   const handleClearChat = () => {
     setMessages([{
       id: generateId(),
-      text: "Chat telah direset! 🔄 Silakan tanyakan kembali seputar pengembangan video pembelajaran fisika. Saya siap membantu! 💡",
+      text: `Chat telah direset! 🔄
+
+Silakan tanyakan kembali seputar pengembangan video pembelajaran fisika. Saya siap membantu! 💡
+
+**Topik populer:**
+• Software editing video
+• Cara membuat storyboard
+• Animasi konsep fisika
+• Miskonsepsi fisika
+• Tips video pembelajaran`,
       sender: 'bot',
       timestamp: new Date(),
       category: 'pengantar'
     }]);
+    setExpandedMessages(new Set());
+  };
+
+  const toggleExpand = (messageId: string) => {
+    setExpandedMessages(prev => {
+      const next = new Set(prev);
+      if (next.has(messageId)) {
+        next.delete(messageId);
+      } else {
+        next.add(messageId);
+      }
+      return next;
+    });
+  };
+
+  const getMessageHeight = (text: string) => {
+    // Rough estimate: if text is very long, show collapsed version
+    return text.length > 800;
   };
 
   return (
@@ -80,7 +133,7 @@ const ChatBot: React.FC = () => {
         {/* Sidebar Header */}
         <div className="p-4 border-b border-gray-800">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-lg font-bold">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-lg font-bold shadow-lg shadow-blue-500/20">
               ⚛️
             </div>
             <div>
@@ -92,24 +145,41 @@ const ChatBot: React.FC = () => {
 
         {/* Categories */}
         <div className="flex-1 overflow-y-auto p-3">
-          <p className="text-xs text-gray-500 uppercase tracking-wider mb-2 px-2">Topik Bahasan</p>
+          <p className="text-xs text-gray-500 uppercase tracking-wider mb-2 px-2 font-semibold">Topik Bahasan</p>
           {categories.map(cat => (
             <button
               key={cat.id}
               onClick={() => {
-                handleSendMessage(`Beritahu saya tentang ${cat.label.replace(/[^\w\s]/g, '').trim()}`);
+                const topicName = cat.label.replace(/^[^\s]+\s/, '');
+                handleSendMessage(`Beritahu saya tentang ${topicName}`);
                 setShowSidebar(false);
               }}
-              className="w-full text-left px-3 py-2.5 rounded-lg text-sm text-gray-300 hover:bg-gray-800 hover:text-white transition-colors mb-1 flex items-center gap-2"
+              className="w-full text-left px-3 py-2.5 rounded-lg text-sm text-gray-300 hover:bg-gray-800 hover:text-white transition-colors mb-1 flex items-center gap-2 group"
             >
-              <span>{cat.icon}</span>
+              <span className="text-base group-hover:scale-110 transition-transform">{cat.icon}</span>
               <span>{cat.label.replace(/^[^\s]+\s/, '')}</span>
             </button>
           ))}
+          
+          <div className="mt-4 pt-4 border-t border-gray-800">
+            <p className="text-xs text-gray-500 uppercase tracking-wider mb-2 px-2 font-semibold">Pertanyaan Cepat</p>
+            {suggestedQuestions.slice(0, 5).map((q, idx) => (
+              <button
+                key={idx}
+                onClick={() => {
+                  handleSendMessage(q);
+                  setShowSidebar(false);
+                }}
+                className="w-full text-left px-3 py-2 rounded-lg text-xs text-gray-400 hover:bg-gray-800 hover:text-gray-200 transition-colors mb-1 truncate"
+              >
+                → {q}
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* Sidebar Footer */}
-        <div className="p-3 border-t border-gray-800">
+        <div className="p-3 border-t border-gray-800 space-y-1">
           <button
             onClick={handleClearChat}
             className="w-full px-3 py-2 rounded-lg text-sm text-gray-400 hover:bg-gray-800 hover:text-white transition-colors flex items-center gap-2"
@@ -117,6 +187,10 @@ const ChatBot: React.FC = () => {
             <span>🔄</span>
             <span>Reset Chat</span>
           </button>
+          <div className="px-3 py-2 text-xs text-gray-600">
+            <p>CakraNewton v2.0</p>
+            <p>Untuk Mahasiswa Pendidikan Fisika</p>
+          </div>
         </div>
       </div>
 
@@ -141,7 +215,7 @@ const ChatBot: React.FC = () => {
             </svg>
           </button>
           <div className="flex items-center gap-3 flex-1">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-base">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-base shadow-lg shadow-blue-500/20">
               ⚛️
             </div>
             <div>
@@ -154,56 +228,82 @@ const ChatBot: React.FC = () => {
           </div>
           <div className="hidden sm:flex items-center gap-2 text-xs text-gray-400 bg-gray-800/50 px-3 py-1.5 rounded-full">
             <span>🎓</span>
-            <span>Untuk Mahasiswa Pendidikan Fisika</span>
+            <span>Pendidikan Fisika</span>
           </div>
         </header>
 
         {/* Messages Area */}
-        <div className="flex-1 overflow-y-auto px-4 py-6 space-y-4">
-          {messages.map((message) => (
-            <div
-              key={message.id}
-              className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'} animate-fadeIn`}
-            >
-              <div className={`flex gap-2 max-w-[85%] sm:max-w-[75%] ${message.sender === 'user' ? 'flex-row-reverse' : ''}`}>
-                {message.sender === 'bot' && (
-                  <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-xs shrink-0 mt-1">
-                    ⚛️
-                  </div>
-                )}
-                <div
-                  className={`rounded-2xl px-4 py-3 ${
-                    message.sender === 'user'
-                      ? 'bg-blue-600 text-white rounded-br-md'
-                      : 'bg-gray-800 text-gray-100 rounded-bl-md border border-gray-700'
-                  }`}
-                >
+        <div ref={messagesContainerRef} className="flex-1 overflow-y-auto px-3 sm:px-4 py-4 sm:py-6 space-y-4">
+          {messages.map((message) => {
+            const isLong = getMessageHeight(message.text);
+            const isExpanded = expandedMessages.has(message.id);
+            
+            return (
+              <div
+                key={message.id}
+                className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'} animate-fadeIn`}
+              >
+                <div className={`flex gap-2 max-w-[90%] sm:max-w-[80%] lg:max-w-[75%] ${message.sender === 'user' ? 'flex-row-reverse' : ''}`}>
+                  {message.sender === 'bot' && (
+                    <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-xs shrink-0 mt-1 shadow-md">
+                      ⚛️
+                    </div>
+                  )}
                   <div
-                    className="text-sm leading-relaxed whitespace-pre-wrap break-words"
-                    dangerouslySetInnerHTML={{ __html: formatMarkdown(message.text) }}
-                  />
-                  <p className={`text-[10px] mt-1.5 ${
-                    message.sender === 'user' ? 'text-blue-200' : 'text-gray-500'
-                  }`}>
-                    {message.timestamp.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
-                  </p>
+                    className={`rounded-2xl px-4 py-3 ${
+                      message.sender === 'user'
+                        ? 'bg-blue-600 text-white rounded-br-md'
+                        : 'bg-gray-800 text-gray-100 rounded-bl-md border border-gray-700'
+                    }`}
+                  >
+                    <div
+                      className={`text-sm leading-relaxed break-words ${isLong && !isExpanded ? 'max-h-64 overflow-hidden relative' : ''}`}
+                      dangerouslySetInnerHTML={{ __html: formatMarkdown(message.text) }}
+                    />
+                    {isLong && !isExpanded && (
+                      <div className="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-gray-800 to-transparent flex items-end justify-center pb-1">
+                        <button
+                          onClick={() => toggleExpand(message.id)}
+                          className="text-xs text-blue-400 hover:text-blue-300 bg-gray-800/80 px-3 py-1 rounded-full border border-gray-600"
+                        >
+                          ↓ Tampilkan selengkapnya
+                        </button>
+                      </div>
+                    )}
+                    {isLong && isExpanded && (
+                      <button
+                        onClick={() => toggleExpand(message.id)}
+                        className="text-xs text-blue-400 hover:text-blue-300 mt-2 block"
+                      >
+                        ↑ Tampilkan lebih ringkas
+                      </button>
+                    )}
+                    <p className={`text-[10px] mt-1.5 ${
+                      message.sender === 'user' ? 'text-blue-200' : 'text-gray-500'
+                    }`}>
+                      {message.timestamp.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
+                    </p>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
 
           {/* Typing Indicator */}
           {isTyping && (
             <div className="flex justify-start animate-fadeIn">
               <div className="flex gap-2">
-                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-xs shrink-0 mt-1">
+                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-xs shrink-0 mt-1 shadow-md">
                   ⚛️
                 </div>
                 <div className="bg-gray-800 border border-gray-700 rounded-2xl rounded-bl-md px-4 py-3">
-                  <div className="flex gap-1.5">
-                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                  <div className="flex items-center gap-2">
+                    <div className="flex gap-1.5">
+                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                    </div>
+                    <span className="text-xs text-gray-500">CakraNewton sedang mengetik...</span>
                   </div>
                 </div>
               </div>
@@ -213,15 +313,15 @@ const ChatBot: React.FC = () => {
           {/* Suggested Questions (only show when there's just the welcome message) */}
           {messages.length === 1 && (
             <div className="mt-4 space-y-3 animate-fadeIn">
-              <p className="text-xs text-gray-500 uppercase tracking-wider px-1">💡 Pertanyaan yang sering ditanyakan:</p>
+              <p className="text-xs text-gray-500 uppercase tracking-wider px-1 font-semibold">💡 Pertanyaan yang sering ditanyakan:</p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {suggestedQuestions.slice(0, 6).map((question, idx) => (
+                {suggestedQuestions.slice(0, 8).map((question, idx) => (
                   <button
                     key={idx}
                     onClick={() => handleSendMessage(question)}
-                    className="text-left px-3 py-2.5 rounded-xl bg-gray-800/50 border border-gray-700 hover:border-blue-500/50 hover:bg-gray-800 transition-all text-sm text-gray-300 hover:text-white"
+                    className="text-left px-3 py-2.5 rounded-xl bg-gray-800/50 border border-gray-700 hover:border-blue-500/50 hover:bg-gray-800 transition-all text-sm text-gray-300 hover:text-white group"
                   >
-                    <span className="text-blue-400 mr-1.5">→</span>
+                    <span className="text-blue-400 mr-1.5 group-hover:mr-2 transition-all">→</span>
                     {question}
                   </button>
                 ))}
@@ -233,11 +333,11 @@ const ChatBot: React.FC = () => {
         </div>
 
         {/* Input Area */}
-        <div className="border-t border-gray-800 bg-gray-900/80 backdrop-blur-md p-4 shrink-0">
+        <div className="border-t border-gray-800 bg-gray-900/80 backdrop-blur-md p-3 sm:p-4 shrink-0">
           {/* Quick suggestions */}
-          {messages.length > 1 && messages.length <= 4 && (
+          {messages.length > 1 && messages.length <= 5 && (
             <div className="flex gap-2 mb-3 overflow-x-auto pb-2 scrollbar-hide">
-              {suggestedQuestions.slice(3, 7).map((question, idx) => (
+              {suggestedQuestions.slice(5, 10).map((question, idx) => (
                 <button
                   key={idx}
                   onClick={() => handleSendMessage(question)}
@@ -249,7 +349,7 @@ const ChatBot: React.FC = () => {
             </div>
           )}
           
-          <div className="flex gap-2 items-center">
+          <div className="flex gap-2 items-center max-w-4xl mx-auto">
             <div className="flex-1 relative">
               <input
                 ref={inputRef}
@@ -270,7 +370,7 @@ const ChatBot: React.FC = () => {
             <button
               onClick={() => handleSendMessage()}
               disabled={!inputText.trim() || isTyping}
-              className="p-3 rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all shrink-0"
+              className="p-3 rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all shrink-0 shadow-lg shadow-blue-500/20"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
@@ -278,7 +378,7 @@ const ChatBot: React.FC = () => {
             </button>
           </div>
           <p className="text-[10px] text-gray-600 mt-2 text-center">
-            CakraNewton © 2024 — Chatbot Pengembangan Video Pembelajaran Fisika untuk Mahasiswa Pendidikan Fisika
+            CakraNewton v2.0 © 2024 — Chatbot Pengembangan Video Pembelajaran Fisika untuk Mahasiswa Pendidikan Fisika
           </p>
         </div>
       </div>
